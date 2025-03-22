@@ -1,23 +1,23 @@
 from flask import Flask, render_template, request, jsonify, session
 import vertexai
-from vertexai.generative_models import Content, GenerativeModel, Part
+from vertexai.generative_models import GenerativeModel
 import os
 import google.cloud.logging
 
 app = Flask(__name__)
-PROJECT_ID = os.environ.get('GCP_PROJECT') #Your Google Cloud Project ID
-LOCATION = os.environ.get('GCP_REGION')   #Your Google Cloud Project Region
+app.secret_key = os.environ.get('FLASK_SESSION_SECRET', 'your_secret_key')  # Use a secure secret key
+PROJECT_ID = os.environ.get('GCP_PROJECT')
+LOCATION = os.environ.get('GCP_REGION')
 
 client = google.cloud.logging.Client(project=PROJECT_ID)
 client.setup_logging()
-
 LOG_NAME = "flask-app-internal-logs"
 logger = client.logger(LOG_NAME)
 
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 
 def create_session():
-    chat_model = GenerativeModel("gemini-2.0-flash")
+    chat_model = GenerativeModel("gemini-1.5-pro")
     chat = chat_model.start_chat()
     return chat
 
@@ -27,7 +27,6 @@ def response(chat, message):
 
 @app.route('/')
 def index():
-    ###
     return render_template('index.html')
 
 @app.route('/gemini', methods=['GET', 'POST'])
@@ -37,9 +36,10 @@ def gemini_chat():
         user_input = request.args.get('user_input')
     else:
         user_input = request.form['user_input']
-    logger.log(f"Starting chat session...")
 
-        # Check if a chat session exists in the Flask session
+    logger.log(f"User input: {user_input}")
+
+    # Check if a chat session exists in the Flask session
     if 'chat' not in session:
         logger.log(f"Starting new chat session...")
         session['chat'] = create_session()  # Store the chat object in the session
@@ -48,8 +48,7 @@ def gemini_chat():
         logger.log(f"Reusing existing chat session...")
 
     chat = session['chat'] # Retrieve the chat object from the session
-
-    content = response(chat_model,user_input)
+    content = response(chat, user_input)
     return jsonify(content=content)
 
 if __name__ == '__main__':
