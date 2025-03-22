@@ -1,8 +1,9 @@
 from flask import Flask, render_template, request, jsonify, session
 import vertexai
-from vertexai.generative_models import GenerativeModel
+from vertexai.generative_models import GenerativeModel, ChatSession
 import os
 import google.cloud.logging
+import json
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SESSION_SECRET', 'your_secret_key')  # Use a secure secret key
@@ -25,6 +26,18 @@ def response(chat, message):
     result = chat.send_message(message)
     return result.text
 
+# Custom encoder to handle ChatSession serialization
+class ChatSessionEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, ChatSession):
+            #  Serialize the chat session.  This is simplified for demonstration.
+            #  In a real application, you might need to store more state.
+            return {
+                "_type": "ChatSession",
+                "history": obj.history,
+            }
+        return super().default(obj)
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -42,12 +55,20 @@ def gemini_chat():
     # Check if a chat session exists in the Flask session
     if 'chat' not in session:
         logger.log(f"Starting new chat session...")
-        session['chat'] = create_session()  # Store the chat object in the session
+        chat = create_session()  # Create the chat object
+        session['chat'] = ChatSessionEncoder().encode(chat) # Store the encoded chat object in the session
         logger.log(f"New Chat Session created")
     else:
         logger.log(f"Reusing existing chat session...")
+        chat_data = session['chat']
+        #  Decode the chat data back into a ChatSession object.
+        chat_dict = json.loads(chat_data)
 
-    chat = session['chat'] # Retrieve the chat object from the session
+        #Reconstruct chat object
+        chat = GenerativeModel("gemini-1.5-pro").start_chat(history=chat_dict['history'])
+
+    session['chat'] = ChatSessionEncoder().encode(chat)  # Store the updated chat object back in the session
+
     content = response(chat, user_input)
     return jsonify(content=content)
 
