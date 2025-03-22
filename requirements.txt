@@ -1,3 +1,6 @@
 google-cloud-aiplatform >= 1.31.0
 flask
 google-cloud-logging
+google-genai 
+langchain-google-vertexai 
+langchain

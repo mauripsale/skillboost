@@ -4,22 +4,37 @@ from vertexai.generative_models import GenerativeModel, ChatSession
 import os
 import google.cloud.logging
 import json
+from google import genai
+from IPython.display import Markdown, display
+from google.genai.types import GenerateContentConfig, ModelContent, UserContent
+from langchain.chains import ConversationChain
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import (
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    MessagesPlaceholder,
+    SystemMessagePromptTemplate,
+)
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_google_vertexai import ChatVertexAI, HarmBlockThreshold, HarmCategory
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SESSION_SECRET', 'your_secret_key')  # Use a secure secret key
+
 PROJECT_ID = os.environ.get('GCP_PROJECT')
 LOCATION = os.environ.get('GCP_REGION')
+MODEL_ID = "gemini-2.0-flash"
 
-client = google.cloud.logging.Client(project=PROJECT_ID)
-client.setup_logging()
-LOG_NAME = "flask-app-internal-logs"
-logger = client.logger(LOG_NAME)
+client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
 
-vertexai.init(project=PROJECT_ID, location=LOCATION)
 
 def create_session():
-    chat_model = GenerativeModel("gemini-1.5-pro")
-    chat = chat_model.start_chat()
+    chat = client.chats.create(
+        model=MODEL_ID,
+        config=GenerateContentConfig(
+            system_instruction="You are an astronomer, knowledgeable about the solar system.."
+    ),
+)
     return chat
 
 def response(chat, message):
